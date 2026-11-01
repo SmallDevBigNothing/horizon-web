@@ -269,7 +269,7 @@ async function main() {
     status.textContent = "";
     // The game's command-line arguments, from the address: ?args=--world%20T
     const asked = new URLSearchParams(location.search).get("args");
-    const args = (asked ?? "--server wss://playmc.jonurres.best").split(" ").filter(Boolean);
+    const args = (asked ?? "").split(" ").filter(Boolean);
     try {
         glue.horizon_start(args);
     } catch (e) {
