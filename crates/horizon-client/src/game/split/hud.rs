@@ -3,6 +3,7 @@
 use super::*;
 use horizon_client::gamepad::Button;
 use horizon_client::hud::{HudBatch, rgba};
+use horizon_os::time::Instant;
 use std::time::Duration;
 
 /// What splitscreen draws over a player's view (`Game::split_hud`): its corner badge (who, for a

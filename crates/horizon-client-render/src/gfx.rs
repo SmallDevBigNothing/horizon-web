@@ -8470,10 +8470,10 @@ struct DisplayWatch {
     wayland: Option<horizon_hdr::wayland::Watch>,
     /// Without Wayland's event, what wgpu last read and when to read it again: the OS
     /// sends no event for a moved window or a changed SDR brightness slider.
-    polled: Option<(Option<crate::graphics::Reported>, std::time::Instant)>,
+    polled: Option<(Option<crate::graphics::Reported>, horizon_os::time::Instant)>,
 }
 /// How often [`DisplayWatch`] reads the OS's values again where no event says they changed.
-const DISPLAY_POLL: std::time::Duration = std::time::Duration::from_secs(2);
+const DISPLAY_POLL: horizon_os::time::Duration = horizon_os::time::Duration::from_secs(2);
 impl DisplayWatch {
     /// Starts watching, with what the system reports now.
     fn new(
@@ -8495,7 +8495,7 @@ impl DisplayWatch {
         let watch = Self {
             #[cfg(target_os = "linux")]
             wayland: None,
-            polled: Some((now, std::time::Instant::now() + DISPLAY_POLL)),
+            polled: Some((now, horizon_os::time::Instant::now() + DISPLAY_POLL)),
         };
         (watch, now)
     }
@@ -8510,7 +8510,7 @@ impl DisplayWatch {
             return wayland.changed().map(|now| now.map(reported));
         }
         let (last, next) = self.polled.as_mut()?;
-        let time = std::time::Instant::now();
+        let time = horizon_os::time::Instant::now();
         if time < *next {
             return None;
         }

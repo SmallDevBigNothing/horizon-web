@@ -2087,7 +2087,7 @@ struct Game<'a> {
     /// When `resourcepacks/` was last looked at for the open pack screen, and what it held
     /// (`watch_pack_folder`).
     pack_folder: Option<(
-        std::time::Instant,
+        horizon_os::time::Instant,
         Vec<(String, u64, Option<std::time::SystemTime>)>,
     )>,
     /// A pack reload staged on a worker (`LoadingOverlay`): the frame draws
@@ -2674,7 +2674,7 @@ struct Game<'a> {
     /// The game tests read so far, by id (the test instance registry).
     test_defs: std::cell::RefCell<HashMap<String, Option<test_instances::TestDef>>>,
     /// `GameTestBlockHighlightRenderer.markers`: block, text, removal time.
-    test_highlights: HashMap<(i32, i32, i32), (String, std::time::Instant)>,
+    test_highlights: HashMap<(i32, i32, i32), (String, horizon_os::time::Instant)>,
     /// `GameTestTicker.SINGLETON`: the game tests running on this server.
     game_tests: game_tests::GameTests,
     /// KeyboardHandler's debug key state (game/debug_keys.rs), the physical
@@ -18215,12 +18215,12 @@ fn launch_world(options: &Options) -> Option<&str> {
 /// A step of the resource load: on its own scoped thread, or, when the
 /// settings allow a single worker, run where it is joined.
 enum Step<'scope, T> {
-    Thread(std::thread::ScopedJoinHandle<'scope, T>),
+    Thread(horizon_os::thread::ScopedJoinHandle<'scope, T>),
     Later(Box<dyn FnOnce() -> T + Send + 'scope>),
 }
 impl<'scope, T: Send + 'scope> Step<'scope, T> {
     fn spawn(
-        scope: &'scope std::thread::Scope<'scope, '_>,
+        scope: &'scope horizon_os::thread::Scope<'scope, '_>,
         parallel: bool,
         f: impl FnOnce() -> T + Send + 'scope,
     ) -> Self {
@@ -18273,14 +18273,14 @@ fn load_core(
 ) -> std::result::Result<std::result::Result<CoreTables, String>, String> {
     let assets = match Assets::load(root) {
         Ok(assets) => assets,
-        Err(e) => return Ok(Err(e.to_string())),
+        Err(e) => return Ok(Err(format!("assets: {e}"))),
     };
     progress.set(1);
     let registry = assets.registry;
     let (render, gameplay, visibility, biomes, environment, collision) =
-        std::thread::scope(|scope| {
+        horizon_os::thread::scope(|scope| {
             let assets = &assets;
-            let render = Step::spawn(scope, parallel, move || {
+            let render = Step::spawn(scope, parallel, move || -> std::result::Result<_, String> {
                 // A server reads no block sprites' pixels, which only the
                 // renderer draws (32 MB).
                 let render = if headless {
@@ -18326,17 +18326,17 @@ fn load_core(
     // The packs' failure first: it rolls back whatever else failed.
     let (render, item_renderer) = match render {
         Ok(render) => render,
-        Err(e) => return Ok(Err(e)),
+        Err(e) => return Ok(Err(format!("render: {e}"))),
     };
-    let gameplay = gameplay?;
+    let gameplay = gameplay.map_err(|e| format!("gameplay: {e}"))?;
     progress.set(3);
     Ok(Ok(CoreTables {
         gameplay,
-        biomes: biomes?,
-        environment: environment?,
-        visibility: visibility?,
-        item_renderer: item_renderer?,
-        collision: collision?,
+        biomes: biomes.map_err(|e| format!("biomes: {e}"))?,
+        environment: environment.map_err(|e| format!("environment: {e}"))?,
+        visibility: visibility.map_err(|e| format!("visibility: {e}"))?,
+        item_renderer: item_renderer.map_err(|e| format!("item renderer: {e}"))?,
+        collision: collision.map_err(|e| format!("collision: {e}"))?,
         assets,
         render,
     }))
@@ -18349,10 +18349,10 @@ fn gameplay_tables(
     parallel: bool,
     progress: &Progress,
 ) -> std::result::Result<GameplayTables, String> {
-    let behaviour_json: serde_json::Value = serde_json::from_reader(std::io::BufReader::new(
-        std::fs::File::open(root.join("block-behaviours.json")).map_err(|e| e.to_string())?,
-    ))
-    .map_err(|e| e.to_string())?;
+    let behaviour_bytes =
+        horizon_os::fs::read(root.join("block-behaviours.json")).map_err(|e| e.to_string())?;
+    let behaviour_json: serde_json::Value =
+        serde_json::from_slice(&behaviour_bytes).map_err(|e| e.to_string())?;
     let (facts, gameplay_projection) =
         BlockFacts::load_with_projection(root, assets.registry, &behaviour_json, parallel)
             .map_err(|e| e.to_string())?;
@@ -18363,7 +18363,7 @@ fn gameplay_tables(
             .any(|s| !s.name.starts_with("minecraft:")),
     );
     progress.set(2);
-    let (light, motion) = std::thread::scope(|scope| {
+    let (light, motion) = horizon_os::thread::scope(|scope| {
         let light = Step::spawn(scope, parallel, || {
             LightTables::load(root, assets.registry, &facts).map_err(|e| e.to_string())
         });
@@ -18429,10 +18429,10 @@ fn load_resources(
             Some(ui)
         }
     };
-    let (core, loaded_gui) = loop {
-        let (ui, core) = std::thread::scope(|scope| {
+        let (core, loaded_gui) = loop {
+        let (ui, core) = horizon_os::thread::scope(|scope| {
             let core = Step::spawn(scope, parallel, || {
-                load_core(&root, headless, parallel, progress)
+                load_core(&root, headless, parallel, progress).map_err(|e| format!("core: {e}"))
             });
             let ui = load_ui(&root).map(|ui| offer(ui, &root));
             (ui, core.join())
@@ -18440,16 +18440,16 @@ fn load_resources(
         let packs = root != vanilla_root;
         let failure = match (ui, core) {
             (Ok(gui), Ok(Ok(core))) => break (core, gui),
-            (Err(e), _) if packs => e.to_string(),
-            (_, Ok(Err(e))) if packs => e,
+            (Err(e), _) if packs => format!("UI bundle: {e}"),
+            (_, Ok(Err(e))) if packs => format!("pack tables: {e}"),
             (_, Ok(Err(e))) => {
                 return Err(format!(
-                    "{e}\nPrepare resources with the launcher, or: horizon-prepare --prepare"
+                    "pack tables: {e}\nPrepare resources with the launcher, or: horizon-prepare --prepare"
                 )
                 .into());
             }
             (_, Err(e)) => return Err(e.into()),
-            (Err(e), Ok(Ok(_))) => return Err(e),
+            (Err(e), Ok(Ok(_))) => return Err(format!("UI bundle: {e}").into()),
         };
         log::warn!(
             "Horizon: resource packs failed to load ({failure}); using the default resources"
@@ -18675,7 +18675,7 @@ fn load_world_rest(
         result.map_err(|e| e.to_string())
     }
     let (items, behaviours, block_entity_render, animate, mobs, transformers) = if threads > 1 {
-        std::thread::scope(|scope| {
+        horizon_os::thread::scope(|scope| {
             let items = scope.spawn(|| text(load_items()));
             let behaviours = scope.spawn(|| text(load_behaviours()));
             let block_entity_render = scope.spawn(|| text(load_block_entity_render()));
@@ -19581,6 +19581,13 @@ impl ApplicationHandler for App {
             Step::Ready(game) => *self = App::Ready(game),
             Step::Done => event_loop.exit(),
             Step::Failed(e) => {
+                let mut chain = format!("{e:?}");
+                let mut source = std::error::Error::source(&*e);
+                while let Some(s) = source {
+                    chain.push_str(&format!(" <- {s:?}"));
+                    source = std::error::Error::source(s);
+                }
+                log::error!("Horizon: loading failed: {chain}");
                 if let App::Loading(loading) = self {
                     loading.error = Some(e);
                 }

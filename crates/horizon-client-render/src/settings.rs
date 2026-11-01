@@ -208,7 +208,7 @@ pub struct Settings {
 }
 impl Default for Settings {
     fn default() -> Self {
-        Self {
+        let mut s = Self {
             fov: 70.0,
             render_distance: 12,
             simulation_distance: 12,
@@ -289,7 +289,16 @@ impl Default for Settings {
             mods: Default::default(),
             shader_packs: Vec::new(),
             shader_options: None,
+        };
+        // The web build's first run targets school laptops: the Performance
+        // preset (render distance 8, fast graphics, no entity shadows) and a
+        // 60 Hz cap, rather than vanilla's desktop defaults.
+        #[cfg(target_arch = "wasm32")]
+        {
+            crate::graphics::apply_preset(crate::graphics::Preset::Performance, &mut s);
+            s.max_fps = 60;
         }
+        s
     }
 }
 fn put_f(f: &mut OptionsFile, key: &str, v: f32) {

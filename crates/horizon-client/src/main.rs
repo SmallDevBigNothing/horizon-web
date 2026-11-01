@@ -52,6 +52,14 @@ fn start() {
         crash::install(home.clone(), side);
     }
     raise_open_file_limit();
+    // The page's thread may not wait for a lock a worker holds (`Atomics.wait`
+    // traps there): the shared, lazily built trig tables are built here, before
+    // any worker exists.
+    #[cfg(target_arch = "wasm32")]
+    {
+        let _ = horizon_core::geometry::trig::sine_table();
+        let _ = horizon_core::geometry::trig::atan2_degrees(0.0, 1.0);
+    }
     if let Err(error) = game::run() {
         // A bad command line is the caller's mistake, not a crash: no report.
         let usage = error.is::<game::UsageError>();

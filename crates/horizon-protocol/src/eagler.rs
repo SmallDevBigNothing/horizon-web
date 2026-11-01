@@ -119,7 +119,7 @@ impl EaglerSocket {
     }
 
     fn shared(&self) -> std::sync::MutexGuard<'_, Shared> {
-        self.shared.lock().unwrap_or_else(|e| e.into_inner())
+        horizon_os::sync::lock(&self.shared).unwrap_or_else(|e| e.into_inner())
     }
 
     /// Queues a packet body for the client to read, as a frame.

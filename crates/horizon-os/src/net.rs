@@ -610,7 +610,7 @@ impl WebSocket {
     pub fn try_clone(&self) -> Self {
         Self {
             handle: self.handle.clone(),
-            timeout: Mutex::new(*self.timeout.lock().unwrap_or_else(|e| e.into_inner())),
+            timeout: Mutex::new(*crate::sync::lock(&self.timeout).unwrap_or_else(|e| e.into_inner())),
         }
     }
 
