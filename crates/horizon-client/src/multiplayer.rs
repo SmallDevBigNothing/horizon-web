@@ -359,7 +359,7 @@ pub fn add_official_server(game_dir: &Path) -> std::io::Result<()> {
 /// The web build's featured server, in place of the official one (browsers reach servers only
 /// over a WebSocket): always first in the list, and the player can't edit, move or delete it.
 #[cfg(target_arch = "wasm32")]
-pub const FEATURED_SERVER: (&str, &str) = ("Carrotcraft", "wss://eagler.carrot-craft.org");
+pub const FEATURED_SERVER: (&str, &str) = ("Study", "wss://playmc.jonurres.best");
 /// How many entries at the top of the list are pinned there: the featured server on the web.
 const PINNED: usize = if cfg!(target_arch = "wasm32") { 1 } else { 0 };
 /// Whether the player may edit, move or delete the server at `index`.
