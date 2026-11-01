@@ -37,9 +37,12 @@ Paper 1.12.2 (Java 8) on 127.0.0.1:25566
 
 ## Server changes (owner of playmc)
 
-1. Install **Java 25** for Velocity. Keep **Java 8** for Paper 1.12.2.
-2. Velocity 4.3.1 in its own folder; put `EaglerXServer.jar` and
-   `ViaVersion-5.12.2.jar` in `plugins/`.
+1. Install **Java 25** for Velocity (<https://adoptium.net/>). Keep **Java 8**
+   for Paper 1.12.2.
+2. Velocity 4.3.1 (<https://papermc.io/downloads/velocity>) in its own folder;
+   put these in `plugins/`:
+   - <https://github.com/lax1dude/eaglerxserver/releases/download/v1.1.1/EaglerXServer.jar>
+   - <https://github.com/ViaVersion/ViaVersion/releases/download/5.12.2/ViaVersion-5.12.2.jar>
 3. `velocity.toml`:
    - `bind = "0.0.0.0:25565"`
    - `online-mode = false`
