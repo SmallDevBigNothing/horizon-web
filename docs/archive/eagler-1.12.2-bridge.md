@@ -1,5 +1,8 @@
 # Joining a 1.12.2 server with Horizon (protocol 777)
 
+> **ARCHIVED (2026-11-02):** `playmc.jonurres.best` is now Minecraft 26.3
+> (protocol 777). This server-side bridge is no longer needed for it.
+
 ## Symptom
 
 The Eagler handshake succeeds, then the server disconnects with:

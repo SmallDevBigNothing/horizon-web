@@ -1,5 +1,9 @@
 # Handoff: client-side legacy protocol layer for Horizon 26.3
 
+> **ARCHIVED (2026-11-02):** `playmc.jonurres.best` is now Minecraft 26.3
+> (protocol 777) and Horizon joins it directly. This 1.12.2 brief is kept only
+> for other legacy servers; it is not an active task.
+
 Status: **not implemented**. This is the brief for the next session/agent.
 Scope: **client-side only**. `playmc` and every other server stay untouched.
 First target: **Minecraft 1.12.2, protocol 340**. Then 1.8.8 if the design holds.
