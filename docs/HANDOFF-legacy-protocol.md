@@ -9,7 +9,9 @@ First target: **Minecraft 1.12.2, protocol 340**. Then 1.8.8 if the design holds
 ## Paste this as the new session's message
 
 ```text
-/goal Build a client-side ViaVersion-style legacy protocol layer in Horizon 26.3 (Rust/WASM) so Horizon itself can join Minecraft 1.12.2 (protocol 340) servers with no server-side changes. Implement it now, not just a design: reproduce the 340 handshake, add the 340 codec and translator behind a per-server protocol override, and drive a real join to wss://playmc.jonurres.best until terrain, movement, chat, inventory and health work. Keep the 26.3 path intact, do not copy GPL code into MIT, and do not claim success without a verified join.
+/goal Build a client-side ViaVersion-style legacy protocol layer in Horizon 26.3 (Rust/WASM) so Horizon itself can join Minecraft 1.12.2 (protocol 340) servers with no server-side changes. Implement it now, not just a design: reproduce the 340 handshake, add the 340 codec and translator behind a per-server protocol override, and drive a real join to wss://playmc.jonurres.best until terrain, movement, chat, inventory and health work. Keep the 26.3 path intact, record provenance/license conflicts for any reused source, and do not claim success without a verified join.
+
+You have full freedom to search for and use newer projects, source code, mappings, and whole clients from anywhere, not just the ones named here. Record provenance and flag license conflicts; do not let the lack of a ready-made Rust crate stop you.
 
 # Context you must trust
 - Horizon is a Rust/WebAssembly Minecraft 26.3 client in this repo. `crates/horizon-core/src/version.rs` has `PROTOCOL_VERSION = 777`, `VANILLA_VERSION = "26.3"`.
@@ -17,10 +19,19 @@ First target: **Minecraft 1.12.2, protocol 340**. Then 1.8.8 if the design holds
 - `crates/horizon-client/src/net.rs` sends the 26.3 handshake with `PROTOCOL_VERSION`, does login (`login::Clientbound::LoginFinished`), then the **configuration phase** (`configure`), then `receive_play`.
 - `crates/horizon-protocol/src/packets/{handshake,login,configuration,play}.rs` are 26.3 packet enums. `Unknown(id, payload)` preserves unmodelled packets.
 - The target server is `wss://playmc.jonurres.best`, Paper 1.12.2 behind EaglerXServer, cracked/offline, 0/20. A probe with `#340` gets `SERVER_VERSION (accepted mc=340)`, `ALLOW_LOGIN`, `FINISH_LOGIN ack: backend login complete`. A probe with `#777` gets `ERROR code=8 {"translate":"Outdated server! I'm still on 1.12.2"}`. The server is not the blocker; Horizon only speaks 777.
-- A deployed native 1.12.2 browser client at `https://study.676706767.xyz/horizon/112/` joins playmc. Use it only as a **packet-trace/reference implementation**: open Chrome DevTools -> Network -> WS -> Messages while joining to capture real 1.12.2 frames. Do not copy its code.
+- A deployed native 1.12.2 browser client at `https://study.676706767.xyz/horizon/112/` joins playmc. Use it as a packet-trace/reference implementation: open Chrome DevTools -> Network -> WS -> Messages while joining to capture real 1.12.2 frames. You may reuse/port its code if its license permits; record provenance.
 - `crates/horizon-world/src/datafix/block_state_data.rs` maps 1.12 block states (`blockId << 4 | data`) to 1.13 states (`upgrade_block_id`, `upgrade_block_state_tag`). `fixes_legacy.rs` covers 1.8->1.12 and `fixes_flat.rs` covers 1.12.2->1.13.2; DataVersion 1343 is 1.12.2. Reuse these instead of inventing block mappings.
 - `crates/horizon-client/src/multiplayer.rs` pings servers and currently treats only protocol 777 as compatible (around lines 233-234). `horizon-protocol/src/servers.rs` owns `ServerEntry`/`parse_address`/`websocket_url`; entries currently carry only name and address.
-- Licenses: Horizon is MIT. ViaVersion and ViaProxy are **GPL-3.0**. Do not copy their code, classes or mapping tables into Horizon. Use the public protocol docs and generated vanilla data; if you reuse GPL data, isolate it and document the license decision.
+- Licenses: Horizon is MIT. ViaVersion and ViaProxy are **GPL-3.0**. You have freedom to reuse them (and any other project), but record provenance; if GPL code is pulled into the MIT client, isolate it behind a feature/component or flag the license decision to the owner instead of silently mixing it.
+
+# Research and reuse freedom
+You have full freedom to search the web and GitHub for newer projects and to use source code, mappings, or whole client implementations from anywhere. Do not wait for a ready-made Rust crate and do not restrict yourself to this list:
+- ViaVersion / ViaProxy (Java, GPL-3.0): translation semantics and mapping tables.
+- ViaFabricPlus (client-side ViaVersion; check its license).
+- EaglercraftX 1.12 source and forks (`TwoMuchNerdo/1.12.2-WASM`, `DevevolperPlus/Eaglercraft-1.12-Source`, `jadenacoder/Eaglercraft-1.12.2`): full 1.12.2 client behavior, packet ordering, chunk/item/entity handling.
+- stevenarella (Rust multi-protocol client), PrismarineJS/minecraft-protocol, MCProtocolLib: 1.12.2 packet schemas/IDs and state machines.
+- wiki.vg / minecraft.wiki protocol 340 docs.
+If a newer project already implements 1.12.2 -> 26.x translation, use it. If a whole 1.12.2 client is the fastest route, port/reuse its protocol layer; do not replace Horizon with it.
 
 # Architecture (recommended)
 Add `crates/horizon-legacy` (or `horizon-protocol/src/legacy/` if that is cleaner) with:
@@ -99,7 +110,7 @@ M6 - Polish (only after M5)
 # Non-negotiables
 - Client-side only. Do not edit playmc, do not add Velocity/ViaVersion to any server, do not require server access.
 - Do not regress the 26.3 path; legacy code is opt-in.
-- No GPL code/mappings copied into MIT Horizon; document provenance.
+- You may use code, mappings, and clients from anywhere; record provenance and flag GPL/MIT conflicts instead of hiding them.
 - No fake success: a real join with terrain, chat, inventory and health, or it is not done.
 - Keep the 1.12.2 client at `/horizon/112` as a reference; do not replace Horizon with it.
 ```
