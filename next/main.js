@@ -16,9 +16,6 @@ Firefox 141 or later on Windows
 On Linux, Chrome, Edge and Brave need WebGPU switched on:
 --enable-unsafe-webgpu --enable-features=Vulkan`;
 
-const STUDY_SERVERS_B64 = "CgAACQAHc2VydmVycwoAAAABCAAEbmFtZQAKU3R1ZHkgMjYuMwgAAmlwABp3c3M6Ly9wbGF5bWMuam9udXJyZXMuYmVzdAEADmFjY2VwdFRleHR1cmVzAQAA";
-const defaultServersDat = Uint8Array.from(atob(STUDY_SERVERS_B64), (c) => c.charCodeAt(0));
-
 // Whether this browser can draw the game; says why not on the page.
 async function webgpu() {
     if (!navigator.gpu) {
@@ -64,7 +61,7 @@ async function cacheWorker() {
 // service worker keeps them by. A page that can't share memory (not cross-origin
 // isolated) runs the single-threaded build when the folder has it (pkg-st/).
 async function versioned() {
-    const files = await fetch("build.json?v=8", { cache: "no-store" })
+    const files = await fetch("build.json", { cache: "no-store" })
         .then((r) => (r.ok ? r.json() : {}))
         .catch(() => ({}));
     const at = (path) => (files[path] ? `${path}?v=${files[path]}` : path);
@@ -121,26 +118,12 @@ function idbOpen() {
 async function idbLoad(glue, db) {
     const files = db.transaction("files").objectStore("files");
     const [paths, records] = await Promise.all([idbRequest(files.getAllKeys()), idbRequest(files.getAll())]);
-    let hasServers = false;
     // In key order: a folder before what it holds.
     paths.forEach((path, i) => {
-        let { data, modified } = records[i];
-        if (data) {
-            if (path.endsWith("servers.dat")) {
-                const text = new TextDecoder().decode(data);
-                if (text.includes("carrot") || !text.includes("playmc.jonurres.best")) {
-                    data = defaultServersDat;
-                    idbApply(db, path, "file", defaultServersDat).catch(() => {});
-                }
-                hasServers = true;
-            }
-            glue.horizon_install_saved_file(path, data, modified);
-        } else glue.horizon_install_saved_dir(path);
+        const { data, modified } = records[i];
+        if (data) glue.horizon_install_saved_file(path, data, modified);
+        else glue.horizon_install_saved_dir(path);
     });
-    if (!hasServers) {
-        glue.horizon_install_saved_file("/servers.dat", defaultServersDat, Date.now());
-        idbApply(db, "/servers.dat", "file", defaultServersDat).catch(() => {});
-    }
     return records.filter((r) => r.data).length;
 }
 
@@ -150,13 +133,12 @@ async function idbApply(db, path, kind, data) {
     if (kind !== "dir") files.delete(IDBKeyRange.bound(`${path}/`, `${path}/\uffff`));
     if (kind === "gone") files.delete(path);
     else files.put(kind === "file" ? { data, modified: Date.now() } : { data: null }, path);
-    return new Promise((resolve, reject) => {
-        transaction.oncomplete = () => resolve();
+    await new Promise((resolve, reject) => {
+        transaction.oncomplete = resolve;
         transaction.onerror = transaction.onabort = () => reject(transaction.error);
     });
 }
 
-let hasOpfsServers = false;
 async function loadSaved(glue, dir, path) {
     if (dir instanceof IDBDatabase) return idbLoad(glue, dir);
     let files = 0;
@@ -167,16 +149,7 @@ async function loadSaved(glue, dir, path) {
             files += await loadSaved(glue, handle, at);
         } else {
             const file = await handle.getFile();
-            let buf = new Uint8Array(await file.arrayBuffer());
-            if (name === "servers.dat") {
-                const text = new TextDecoder().decode(buf);
-                if (text.includes("carrot") || !text.includes("playmc.jonurres.best")) {
-                    buf = defaultServersDat;
-                    apply(dir, at, "file", defaultServersDat).catch(() => {});
-                }
-                hasOpfsServers = true;
-            }
-            glue.horizon_install_saved_file(at, buf, file.lastModified);
+            glue.horizon_install_saved_file(at, new Uint8Array(await file.arrayBuffer()), file.lastModified);
             files += 1;
         }
     }
@@ -190,14 +163,15 @@ async function folder(root, parts, create) {
         try {
             dir = await dir.getDirectoryHandle(part, { create });
         } catch (e) {
-            if (e.name !== "TypeMismatchError") {
-                if (e.name === "NotFoundError") return null;
+            if (create && e.name === "TypeMismatchError") {
+                // A file where a folder goes now.
+                await dir.removeEntry(part);
+                dir = await dir.getDirectoryHandle(part, { create });
+            } else if (e.name === "NotFoundError") {
+                return null;
+            } else {
                 throw e;
             }
-            // A file where a folder goes now.
-            if (!create) return null;
-            await dir.removeEntry(part);
-            dir = await dir.getDirectoryHandle(part, { create });
         }
     }
     return dir;
@@ -257,11 +231,11 @@ function saveChanges(glue, root) {
 async function served() {
     await cacheWorker();
     const files = await versioned();
-    status.textContent = "Loading the game…";
-    const glue = await import(`./${files.pkg}/horizon-client.js?v=8`);
+    status.textContent = "Cargando apuntes…";
+    const glue = await import(`./${files.pkg}/horizon-client.js`);
     // Runs the game's main, which only registers the game to start.
     await glue.default({ module_or_path: files.wasm });
-    const gz = await download(files.boot, "Downloading resources");
+    const gz = await download(files.boot, "Descargando recursos");
     const tar = new Uint8Array(
         await new Response(gz.pipeThrough(new DecompressionStream("gzip"))).arrayBuffer());
     const manifest = await (await fetch("fs/manifest.txt")).text();
@@ -271,7 +245,7 @@ async function served() {
 async function main() {
     if (!(await webgpu())) return;
     const { glue, tar, manifest, base } = await (globalThis.horizonOffline ?? served)();
-    status.textContent = "Installing resources…";
+    status.textContent = "Preparando apuntes…";
     const t0 = performance.now();
     const installed = glue.horizon_install_tar(ROOT, tar);
     glue.horizon_install_manifest(ROOT, base, manifest);
@@ -279,29 +253,23 @@ async function main() {
 
     const root = await savedRoot();
     if (root) {
-        hasOpfsServers = false;
         const t1 = performance.now();
         const saved = await loadSaved(glue, root, "");
-        if (!hasOpfsServers) {
-            glue.horizon_install_saved_file("/servers.dat", defaultServersDat, Date.now());
-            apply(root, "/servers.dat", "file", defaultServersDat).catch(() => {});
-        }
         console.log(`Horizon: ${saved} saved files loaded in ${Math.round(performance.now() - t1)} ms`);
         setInterval(() => saveChanges(glue, root), 2000);
         document.addEventListener("visibilitychange", () => {
             if (document.hidden) saveChanges(glue, root);
         });
         addEventListener("pagehide", () => saveChanges(glue, root));
-    } else {
-        glue.horizon_install_saved_file("/servers.dat", defaultServersDat, Date.now());
     }
 
-    status.textContent = "Loading resources…";
+    status.textContent = "Cargando recursos…";
     // Let the status paint before the game blocks the page while it loads.
     await new Promise((resolve) => requestAnimationFrame(() => setTimeout(resolve, 0)));
     status.textContent = "";
     // The game's command-line arguments, from the address: ?args=--world%20T
-    const args = (new URLSearchParams(location.search).get("args") ?? "").split(" ").filter(Boolean);
+    const asked = new URLSearchParams(location.search).get("args");
+    const args = (asked ?? "").split(" ").filter(Boolean);
     try {
         glue.horizon_start(args);
     } catch (e) {
@@ -317,5 +285,5 @@ main().catch((e) => {
     const isolation = window.crossOriginIsolated ? "" :
         "\n\nThe page isn't cross-origin isolated: its server must send " +
         "Cross-Origin-Opener-Policy: same-origin and Cross-Origin-Embedder-Policy: require-corp.";
-    status.textContent = `Horizon could not start:\n${e}${isolation}`;
+    status.textContent = `No se pudieron cargar los apuntes:\n${e}${isolation}`;
 });
