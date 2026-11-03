@@ -1,11 +1,13 @@
 <!doctype html>
-<html lang="es">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Horizon</title>
-<meta name="description" content="Demostración interactiva en el navegador.">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' rx='2' fill='%232b6cb0'/%3E%3Cpath d='M4 3h7a1 1 0 0 1 1 1v9H5a1 1 0 0 1-1-1z' fill='%23fff'/%3E%3C/svg%3E">
+<link rel="icon" href="data:,">
+<link rel="modulepreload" href="main.js?v=11">
+<link rel="preload" href="fs/boot.tar.gz?v=bd0de3ef16aa8826" as="fetch" crossorigin>
+<link rel="preload" href="pkg-st/horizon-client_bg.wasm?v=fcd0d302f0078382" as="fetch" crossorigin>
 <style>
   html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
   body > canvas { display: block; width: 100vw !important; height: 100vh !important; outline: none; }
@@ -18,7 +20,7 @@
 </style>
 </head>
 <body>
-<div id="status">Cargando…</div>
-<script type="module" src="main.js"></script>
+<div id="status">Starting…</div>
+<script type="module" src="main.js?v=11"></script>
 </body>
 </html>
