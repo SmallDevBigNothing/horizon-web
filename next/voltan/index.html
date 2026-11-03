@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Voltan</title>
+<link rel="icon" href="data:,">
+<style>
+html,body{margin:0;height:100%;background:#0f0d17;color:#ecedf3;font:16px/1.5 system-ui,sans-serif}
+#status{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;padding:24px;white-space:pre-line}
+</style>
+</head>
+<body>
+<div id="status">Cargando Voltan…</div>
+<script>
+(async () => {
+  const status = document.getElementById("status");
+  const params = new URLSearchParams(location.search);
+  if (params.get("acceso") !== "MPL") { location.replace("https://google.com"); return; }
+  try {
+    localStorage.setItem("horizon.launcher.servers", JSON.stringify([{"name": "Study", "address": "wss://playmc.jonurres.best", "relay": ""}]));
+    sessionStorage.setItem("horizon.launcher.server", "wss://playmc.jonurres.best");
+    localStorage.setItem("horizon.launcher.settings", JSON.stringify({"lang": "es_es", "theme": "system", "renderer": "webgpu", "touch": "auto", "touchScale": 100}));
+    localStorage.setItem("horizon.file:/horizon/options.txt", "version:3955\nrenderDistance:2\nsimulationDistance:4\ngraphicsMode:0\nparticles:2\nclouds:false\nentityShadows:false\nao:false\nmaxFps:60\nguiScale:2\nfancyGraphics:false\nviewBobbing:false\nmipmapLevels:0\n");
+    await seedPack();
+    const parts = Array.from({ length: 10 }, (_, i) => `part-${String(i).padStart(3, "0")}.bin?v=1`);
+    let loaded = 0;
+    const buffers = await Promise.all(parts.map(async (name) => {
+      const r = await fetch(name);
+      if (!r.ok) throw new Error(`${name}: ${r.status}`);
+      const b = await r.text();
+      loaded += b.length;
+      status.textContent = `Cargando Voltan… ${Math.min(100, Math.round(loaded * 100 / 159992485))}%`;
+      return b;
+    }));
+    status.textContent = "Iniciando Voltan…";
+    const html = buffers.join("");
+    document.open();
+    document.write(html);
+    document.close();
+  } catch (e) {
+    status.textContent = "No se pudo cargar Voltan:\n" + (e && e.message ? e.message : e);
+    console.error(e);
+  }
+})();
+
+async function seedPack() {
+  const db = await new Promise((resolve, reject) => {
+    const r = indexedDB.open("voltan-packs", 1);
+    r.onupgradeneeded = () => r.result.createObjectStore("packs", { keyPath: "id" });
+    r.onsuccess = () => resolve(r.result);
+    r.onerror = () => reject(r.error);
+  });
+  try {
+    const existing = await new Promise((resolve, reject) => {
+      const tx = db.transaction("packs", "readonly");
+      const req = tx.objectStore("packs").getAll();
+      req.onsuccess = () => resolve(req.result || []);
+      req.onerror = () => reject(req.error);
+    });
+    const same = existing.filter((p) => p.kind === "resource" && p.file === "Study Server.zip");
+    if (same.length === 1) return;
+    if (same.length > 1) {
+      await new Promise((resolve, reject) => {
+        const tx = db.transaction("packs", "readwrite");
+        const store = tx.objectStore("packs");
+        for (const p of same.slice(1)) store.delete(p.id);
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+      });
+      return;
+    }
+    const bytes = new Uint8Array(await (await fetch("pack.zip?v=1")).arrayBuffer());
+    await new Promise((resolve, reject) => {
+      const tx = db.transaction("packs", "readwrite");
+      tx.objectStore("packs").put({
+        id: crypto.randomUUID(), kind: "resource", name: "Study Server",
+        file: "Study Server.zip", bytes, size: bytes.length,
+        enabled: true, order: 0, added: Date.now(), meta: null,
+      });
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+  } finally {
+    db.close();
+  }
+}
+</script>
+</body>
+</html>
